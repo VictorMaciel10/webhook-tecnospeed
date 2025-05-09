@@ -2,8 +2,13 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import json
 import os
+import requests
 
 app = Flask(__name__)
+
+# CONFIGURAÇÕES PLUGZAPI
+PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/F65a1f06a25fe4fc58bcf1d9ff88e878dS/send-text"
+TELEFONE_DESTINO = "5511971102724"
 
 # Função para salvar os dados no log
 def salvar_log(dados):
@@ -12,7 +17,30 @@ def salvar_log(dados):
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Rota do webhook
+# Enviar mensagem via PlugzAPI
+def enviar_whatsapp(mensagem):
+    payload = {
+        "number": TELEFONE_DESTINO,
+        "text": mensagem
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    try:
+        resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
+        print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
+        return resposta.status_code == 200
+    except Exception as e:
+        print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
+        return False
+
+@app.route("/webhook", methods=["GET"])
+def webhook_info():
+    return jsonify({
+        "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
+    }), 200
+
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
@@ -25,9 +53,13 @@ def receber_webhook():
                 "dados": {}
             }), 400
 
-        print(" Webhook recebido da TecnoSpeed:")
+        print("📨 Webhook recebido da TecnoSpeed:")
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
+
+        # Criar mensagem para WhatsApp com conteúdo JSON formatado
+        mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{json.dumps(dados, indent=2, ensure_ascii=False)}"
+        enviar_whatsapp(mensagem)
 
         return jsonify({
             "mensagem": "Recebido com sucesso",
@@ -35,13 +67,12 @@ def receber_webhook():
         }), 200
 
     except Exception as e:
-        print(f" Erro ao processar webhook: {e}")
+        print(f"❌ Erro ao processar webhook: {e}")
         return jsonify({
             "erro": "Falha ao processar",
             "dados": {}
         }), 400
 
-# Inicialização do Flask com suporte à porta do Railway
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
