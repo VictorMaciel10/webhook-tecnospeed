@@ -30,6 +30,7 @@ def enviar_whatsapp(mensagem):
     try:
         resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
         print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
+        print("🧾 Resposta da PlugzAPI:", resposta.text)
         return resposta.status_code == 200
     except Exception as e:
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
