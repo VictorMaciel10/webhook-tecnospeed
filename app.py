@@ -7,7 +7,7 @@ import requests
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
-PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/E0B3DF5A07D71A7388EE323D/send-text"
+PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
 TELEFONE_DESTINO = "5511971102724"
 
 # Função para salvar os dados no log
@@ -24,7 +24,7 @@ def enviar_whatsapp(mensagem):
         "text": mensagem
     }
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     try:
