@@ -34,7 +34,7 @@ def enviar_whatsapp(mensagem):
 
     payload = {
         "phone": TELEFONE_DESTINO,
-        "message": mensagem
+        "message": mensagem.strip()[:4096]  # PlugzAPI aceita no máximo 4096 caracteres
     }
 
     headers = {
@@ -77,10 +77,19 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Monta mensagem com todos os dados recebidos, substituindo campos problemáticos
-        mensagem_json = json.dumps(dados, indent=2, ensure_ascii=False)
-        mensagem_limpa = mensagem_json.replace("null", '"-"').replace("[]", '"-"').replace("{}", '"-"')
-        mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{mensagem_limpa}"
+        # Conversão segura de dados para string plana
+        def formatar_valores(val):
+            if val is None or val == {} or val == []:
+                return "-"
+            if isinstance(val, dict):
+                return ", ".join(f"{k}: {formatar_valores(v)}" for k, v in val.items())
+            if isinstance(val, list):
+                return ", ".join(str(formatar_valores(v)) for v in val)
+            return str(val)
+
+        mensagem = "📬 Notificação recebida da Tecnospeed:\n"
+        for chave, valor in dados.items():
+            mensagem += f"\n{chave}: {formatar_valores(valor)}"
 
         enviar_whatsapp(mensagem)
 
