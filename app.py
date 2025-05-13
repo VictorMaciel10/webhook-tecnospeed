@@ -9,7 +9,9 @@ app = Flask(__name__)
 # CONFIGURAÇÕES PLUGZAPI
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
 TELEFONE_DESTINO = "5511971102724"
-CLIENT_TOKEN = "Fc0dd5429e2674e2e9cea2c0b5b29d000S"  # Token de autenticação para envio
+
+# TOKEN DE SEGURANÇA DO HEADER (enviado pela Tecnospeed)
+CLIENT_TOKEN_HEADER = "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
 
 # Função para salvar os dados no log
 def salvar_log(dados):
@@ -21,7 +23,11 @@ def salvar_log(dados):
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
     if not mensagem:
-        print("❌ Mensagem vazia. Não enviada ao WhatsApp.")
+        print("❌ Mensagem vazia. Abortando envio.")
+        return False
+
+    if not TELEFONE_DESTINO:
+        print("❌ Número de telefone não definido.")
         return False
 
     payload = {
@@ -30,8 +36,8 @@ def enviar_whatsapp(mensagem):
     }
 
     headers = {
-        "Content-Type": "application/json",
-        "Client-Token": CLIENT_TOKEN  # Cabeçalho exigido pela PlugzAPI
+        "Content-Type": "application/json"
+        # ⚠️ Não adicionar Client-Token aqui — já está na URL
     }
 
     try:
@@ -52,6 +58,12 @@ def webhook_info():
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
+        # 🔐 Valida o token de segurança recebido no header
+        token_recebido = request.headers.get("Client-Token")
+        if token_recebido != CLIENT_TOKEN_HEADER:
+            print(f"❌ Token inválido recebido: {token_recebido}")
+            return jsonify({"erro": "Token de segurança inválido"}), 403
+
         dados = request.get_json(silent=True)
 
         if not dados:
