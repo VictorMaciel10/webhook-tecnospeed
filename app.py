@@ -77,7 +77,11 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{json.dumps(dados, indent=2, ensure_ascii=False)}"
+        # Monta mensagem com todos os dados recebidos, substituindo campos problemáticos
+        mensagem_json = json.dumps(dados, indent=2, ensure_ascii=False)
+        mensagem_limpa = mensagem_json.replace("null", '"-"').replace("[]", '"-"').replace("{}", '"-"')
+        mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{mensagem_limpa}"
+
         enviar_whatsapp(mensagem)
 
         return jsonify({
