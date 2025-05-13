@@ -7,8 +7,9 @@ import requests
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
-PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
+PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/send-text"
 TELEFONE_DESTINO = "5511971102724"
+CLIENT_TOKEN = "Fc0dd5429e2674e2e9cea2c0b5b29d000S"  # Token de autenticação para envio
 
 # Função para salvar os dados no log
 def salvar_log(dados):
@@ -19,12 +20,18 @@ def salvar_log(dados):
 
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
+    if not mensagem:
+        print("❌ Mensagem vazia. Não enviada ao WhatsApp.")
+        return False
+
     payload = {
         "number": TELEFONE_DESTINO,
         "text": mensagem
     }
+
     headers = {
         "Content-Type": "application/json",
+        "Client-Token": CLIENT_TOKEN  # Cabeçalho exigido pela PlugzAPI
     }
 
     try:
@@ -54,11 +61,10 @@ def receber_webhook():
                 "dados": {}
             }), 400
 
-        print("📨 Webhook recebido da TecnoSpeed:")
+        print("📨 Webhook recebido da Tecnospeed:")
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Criar mensagem para WhatsApp com conteúdo JSON formatado
         mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{json.dumps(dados, indent=2, ensure_ascii=False)}"
         enviar_whatsapp(mensagem)
 
