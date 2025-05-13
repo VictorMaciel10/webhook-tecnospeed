@@ -15,7 +15,9 @@ CLIENT_TOKEN_HEADER = "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
 
 # Função para salvar os dados no log
 def salvar_log(dados):
-    with open("log_webhook.txt", "a", encoding="utf-8") as f:
+    caminho_log = os.path.abspath("log_webhook.txt")
+    print(f"📝 Salvando log em: {caminho_log}")
+    with open(caminho_log, "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
@@ -31,13 +33,12 @@ def enviar_whatsapp(mensagem):
         return False
 
     payload = {
-        "number": TELEFONE_DESTINO,
-        "text": mensagem
+        "phone": TELEFONE_DESTINO,
+        "message": mensagem
     }
 
     headers = {
         "Content-Type": "application/json"
-        # ⚠️ Não adicionar Client-Token aqui — já está na URL
     }
 
     try:
@@ -58,7 +59,6 @@ def webhook_info():
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
-        # 🔐 Valida o token de segurança recebido no header
         token_recebido = request.headers.get("Client-Token")
         if token_recebido != CLIENT_TOKEN_HEADER:
             print(f"❌ Token inválido recebido: {token_recebido}")
