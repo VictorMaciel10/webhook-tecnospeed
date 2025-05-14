@@ -9,7 +9,13 @@ app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
-TELEFONE_DESTINO = "5511988314240"
+
+# Mapeamento CNPJ -> número de WhatsApp
+DESTINOS_WHATSAPP = {
+    "45784346000166": "5511988314240",
+    "35255716000114": "5511971102724",
+    "13279813000104": "5511971102724"
+}
 
 # Função para salvar os dados no log
 def salvar_log(dados):
@@ -30,9 +36,9 @@ def flatten_dict(d, parent_key='', sep='.'):
     return dict(items)
 
 # Enviar mensagem via PlugzAPI
-def enviar_whatsapp(mensagem):
+def enviar_whatsapp(mensagem, telefone_destino):
     payload = {
-        "phone": TELEFONE_DESTINO,
+        "phone": telefone_destino,
         "message": mensagem
     }
     headers = {
@@ -71,12 +77,27 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
+        # Obter o CNPJ do cedente
+        cnpj = dados.get("CpfCnpjCedente")
+        if not cnpj:
+            return jsonify({
+                "erro": "Campo 'CpfCnpjCedente' ausente no JSON recebido.",
+                "dados": {}
+            }), 400
+
+        telefone_destino = DESTINOS_WHATSAPP.get(cnpj)
+        if not telefone_destino:
+            return jsonify({
+                "erro": f"CNPJ '{cnpj}' não autorizado ou não mapeado.",
+                "dados": {}
+            }), 403
+
         # Achatar JSON para texto plano
         flat = flatten_dict(dados)
         mensagem = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
 
         # Enviar mensagem para WhatsApp
-        enviar_whatsapp(mensagem)
+        enviar_whatsapp(mensagem, telefone_destino)
 
         return jsonify({
             "mensagem": "Recebido com sucesso",
