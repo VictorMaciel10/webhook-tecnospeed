@@ -3,40 +3,33 @@ from datetime import datetime
 import json
 import os
 import requests
+from collections.abc import MutableMapping
 
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
-TELEFONE_DESTINO = "5511988314240"  # WhatsApp DDI+DDD+número
+TELEFONE_DESTINO = "5511988314240"
 
-# Função para salvar os dados no log local
+# Função para salvar os dados no log
 def salvar_log(dados):
     with open("log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Função para gerar uma mensagem formatada para WhatsApp
-def gerar_mensagem_simplificada(dados):
-    try:
-        def formatar(valor):
-            if isinstance(valor, dict):
-                return "\n".join([f"  {k}: {formatar(v)}" for k, v in valor.items() if v is not None])
-            elif isinstance(valor, list):
-                return "\n".join([f"  - {formatar(v)}" for v in valor if v is not None])
-            else:
-                return str(valor)
+# Função para achatar dicionários aninhados
+def flatten_dict(d, parent_key='', sep='.'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
-        partes = []
-        for chave, valor in dados.items():
-            if valor is not None:
-                partes.append(f"{chave}:\n{formatar(valor)}" if isinstance(valor, (dict, list)) else f"{chave}: {valor}")
-        return "\n".join(partes)
-    except Exception as e:
-        return f"📨 Notificação recebida, mas ocorreu erro ao formatar: {e}"
-
-# Envia a mensagem formatada via PlugzAPI
+# Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
     payload = {
         "phone": TELEFONE_DESTINO,
@@ -55,14 +48,12 @@ def enviar_whatsapp(mensagem):
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
         return False
 
-# GET básico para testar o webhook
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
         "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
     }), 200
 
-# POST que recebe as notificações Tecnospeed
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
@@ -79,7 +70,11 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        mensagem = gerar_mensagem_simplificada(dados)
+        # Achatar JSON para texto plano
+        flat = flatten_dict(dados)
+        mensagem = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+
+        # Enviar mensagem para WhatsApp
         enviar_whatsapp(mensagem)
 
         return jsonify({
