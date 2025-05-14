@@ -80,20 +80,16 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Conversão segura para texto plano, evitando null/[]/{} que a PlugzAPI rejeita
-        def formatar_valores(val):
-            if val is None or val == {} or val == []:
-                return "-"
-            if isinstance(val, dict):
-                return ", ".join(f"{k}: {formatar_valores(v)}" for k, v in val.items())
-            if isinstance(val, list):
-                return ", ".join(str(formatar_valores(v)) for v in val)
-            return str(val)
+        # Envia o JSON puro como texto com valores convertidos em texto
+        def limpar_valores(d):
+            if isinstance(d, dict):
+                return {k: limpar_valores(v) for k, v in d.items() if v not in [None, [], {}]}
+            elif isinstance(d, list):
+                return [limpar_valores(v) for v in d if v not in [None, [], {}]]
+            return d
 
-        mensagem = ""
-        for chave, valor in dados.items():
-            mensagem += f"{chave}: {formatar_valores(valor)}\n"
-
+        dados_limpos = limpar_valores(dados)
+        mensagem = json.dumps(dados_limpos, ensure_ascii=False, separators=(",", ":"))
         enviar_whatsapp(mensagem)
 
         return jsonify({
