@@ -10,39 +10,22 @@ app = Flask(__name__)
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
 TELEFONE_DESTINO = "5511988314240"
 
-# TOKEN DE SEGURANÇA DO HEADER (enviado pela Tecnospeed)
-CLIENT_TOKEN_HEADER = "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
-
 # Função para salvar os dados no log
 def salvar_log(dados):
-    caminho_log = os.path.abspath("log_webhook.txt")
-    print(f"📝 Salvando log em: {caminho_log}")
-    with open(caminho_log, "a", encoding="utf-8") as f:
+    with open("log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
-    if not mensagem:
-        print("❌ Mensagem vazia. Abortando envio.")
-        return False
-
-    if not TELEFONE_DESTINO:
-        print("❌ Número de telefone não definido.")
-        return False
-
     payload = {
         "phone": TELEFONE_DESTINO,
-        "message": mensagem[:4096]  # Garante limite da PlugzAPI
+        "message": mensagem
     }
-
     headers = {
         "Content-Type": "application/json"
     }
-
-    print("📦 Enviando este payload para PlugzAPI:")
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     try:
         resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
@@ -62,11 +45,6 @@ def webhook_info():
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
-        token_recebido = request.headers.get("Client-Token")
-        if token_recebido != CLIENT_TOKEN_HEADER:
-            print("❌ Token inválido recebido:", token_recebido)
-            return jsonify({"erro": "Token de segurança inválido"}), 403
-
         dados = request.get_json(silent=True)
 
         if not dados:
@@ -76,24 +54,12 @@ def receber_webhook():
                 "dados": {}
             }), 400
 
-        print("📨 Webhook recebido da Tecnospeed:")
+        print("📨 Webhook recebido da TecnoSpeed:")
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Conversão direta para texto plano sem JSON, apenas texto legível
-        def json_para_texto(data, prefixo=""):
-            linhas = []
-            if isinstance(data, dict):
-                for k, v in data.items():
-                    linhas.extend(json_para_texto(v, f"{prefixo}{k}: "))
-            elif isinstance(data, list):
-                for i, item in enumerate(data):
-                    linhas.extend(json_para_texto(item, f"{prefixo}[{i}] "))
-            else:
-                linhas.append(f"{prefixo}{data}")
-            return linhas
-
-        mensagem = "\n".join(json_para_texto(dados))
+        # Criar mensagem para WhatsApp com conteúdo JSON formatado
+        mensagem = f"📬 Notificação recebida da Tecnospeed:\n\n{json.dumps(dados, indent=2, ensure_ascii=False)}"
         enviar_whatsapp(mensagem)
 
         return jsonify({
@@ -102,7 +68,7 @@ def receber_webhook():
         }), 200
 
     except Exception as e:
-        print("❌ Erro ao processar webhook:", e)
+        print(f"❌ Erro ao processar webhook: {e}")
         return jsonify({
             "erro": "Falha ao processar",
             "dados": {}
