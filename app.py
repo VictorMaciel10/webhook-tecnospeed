@@ -24,8 +24,8 @@ def salvar_log(dados):
 
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
-    if not mensagem:
-        print("❌ Mensagem vazia. Abortando envio.")
+    if not mensagem or mensagem.strip() == "📬 Notificação recebida da Tecnospeed:":
+        print("❌ Mensagem inválida ou vazia após formatação. Abortando envio.")
         return False
 
     if not TELEFONE_DESTINO:
@@ -34,12 +34,15 @@ def enviar_whatsapp(mensagem):
 
     payload = {
         "phone": TELEFONE_DESTINO,
-        "message": mensagem.strip()[:4096]  # PlugzAPI aceita no máximo 4096 caracteres
+        "message": mensagem.strip()[:4096]
     }
 
     headers = {
         "Content-Type": "application/json"
     }
+
+    print("📦 Enviando este payload para PlugzAPI:")
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     try:
         resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
