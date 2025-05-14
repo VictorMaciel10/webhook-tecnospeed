@@ -36,7 +36,8 @@ def enviar_whatsapp(mensagem):
         "message": mensagem
     }
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Client-Token": "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
     }
 
     try:
