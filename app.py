@@ -56,7 +56,7 @@ def enviar_whatsapp(mensagem):
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
-        "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
+        "mensagem": "Este endpoint é um Webhook e aceita apenas requisições POST com JSON."
     }), 200
 
 @app.route("/webhook", methods=["POST"])
