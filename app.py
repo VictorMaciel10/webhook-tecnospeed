@@ -74,6 +74,12 @@ def receber_webhook():
         corpo = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
         mensagem = f"📩 Webhook recebido:\n\n{corpo}"
 
+        # ⚠️ Verificação para evitar enviar mensagens vazias
+        if not corpo.strip():
+            print("⚠️ Nenhuma informação útil para enviar. Corpo vazio.")
+            return jsonify({"erro": "Mensagem vazia, nada foi enviado ao WhatsApp."}), 400
+
+        # Enviar mensagem para WhatsApp
         enviado = enviar_whatsapp(mensagem)
         if not enviado:
             return jsonify({"erro": "Falha ao enviar mensagem para o WhatsApp"}), 500
