@@ -17,6 +17,17 @@ def salvar_log(dados):
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
+# Função para gerar mensagem simplificada sem nulls
+def gerar_mensagem_simplificada(dados):
+    try:
+        partes = []
+        for chave, valor in dados.items():
+            if valor is not None:
+                partes.append(f"{chave}: {valor}")
+        return "\n".join(partes)
+    except Exception as e:
+        return f"📨 Nova notificação recebida, mas erro ao formatar os dados: {e}"
+
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
     payload = {
@@ -58,10 +69,10 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Converter JSON recebido em texto puro
-        mensagem = json.dumps(dados, indent=2, ensure_ascii=False)
+        # Gera mensagem limpa para WhatsApp
+        mensagem = gerar_mensagem_simplificada(dados)
 
-        # Enviar mensagem para o WhatsApp
+        # Envia via PlugzAPI
         enviar_whatsapp(mensagem)
 
         return jsonify({
