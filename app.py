@@ -7,7 +7,7 @@ from collections.abc import MutableMapping
 
 app = Flask(__name__)
 
-# CONFIGURAÇÕES
+# CONFIGURAÇÕES PLUGZAPI
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
 TELEFONE_DESTINO = "5511988314240"
 
@@ -48,47 +48,46 @@ def enviar_whatsapp(mensagem):
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
         return False
 
-# Endpoint informativo
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
         "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
     }), 200
 
-# Endpoint principal do webhook
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
     try:
         dados = request.get_json(silent=True)
+
         if not dados:
             print("⚠️ Webhook recebido com corpo vazio ou JSON inválido.")
-            return jsonify({"erro": "Corpo vazio ou JSON inválido"}), 400
+            return jsonify({
+                "erro": "Corpo vazio ou JSON inválido",
+                "dados": {}
+            }), 400
 
         print("📨 Webhook recebido da TecnoSpeed:")
         print(json.dumps(dados, indent=2, ensure_ascii=False))
-
         salvar_log(dados)
 
-        # Achatar JSON para gerar mensagem legível
+        # Achatar JSON para texto plano
         flat = flatten_dict(dados)
-        corpo = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
-        mensagem = f"📩 Webhook recebido:\n\n{corpo}"
-
-        # ⚠️ Verificação para evitar enviar mensagens vazias
-        if not corpo.strip():
-            print("⚠️ Nenhuma informação útil para enviar. Corpo vazio.")
-            return jsonify({"erro": "Mensagem vazia, nada foi enviado ao WhatsApp."}), 400
+        mensagem = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
 
         # Enviar mensagem para WhatsApp
-        enviado = enviar_whatsapp(mensagem)
-        if not enviado:
-            return jsonify({"erro": "Falha ao enviar mensagem para o WhatsApp"}), 500
+        enviar_whatsapp(mensagem)
 
-        return jsonify({"mensagem": "Recebido com sucesso"}), 200
+        return jsonify({
+            "mensagem": "Recebido com sucesso",
+            "dados": {}
+        }), 200
 
     except Exception as e:
         print(f"❌ Erro ao processar webhook: {e}")
-        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
+        return jsonify({
+            "erro": "Falha ao processar",
+            "dados": {}
+        }), 400
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
