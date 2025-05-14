@@ -34,7 +34,7 @@ def enviar_whatsapp(mensagem):
 
     payload = {
         "phone": TELEFONE_DESTINO,
-        "message": mensagem.strip()[:4096]  # plugzapi aceita no máximo 4096 caracteres
+        "message": mensagem[:4096]  # Garante limite da PlugzAPI
     }
 
     headers = {
@@ -80,16 +80,20 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Envia o JSON puro como texto com valores convertidos em texto
-        def limpar_valores(d):
-            if isinstance(d, dict):
-                return {k: limpar_valores(v) for k, v in d.items() if v not in [None, [], {}]}
-            elif isinstance(d, list):
-                return [limpar_valores(v) for v in d if v not in [None, [], {}]]
-            return d
+        # Conversão direta para texto plano sem JSON, apenas texto legível
+        def json_para_texto(data, prefixo=""):
+            linhas = []
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    linhas.extend(json_para_texto(v, f"{prefixo}{k}: "))
+            elif isinstance(data, list):
+                for i, item in enumerate(data):
+                    linhas.extend(json_para_texto(item, f"{prefixo}[{i}] "))
+            else:
+                linhas.append(f"{prefixo}{data}")
+            return linhas
 
-        dados_limpos = limpar_valores(dados)
-        mensagem = json.dumps(dados_limpos, ensure_ascii=False, separators=(",", ":"))
+        mensagem = "\n".join(json_para_texto(dados))
         enviar_whatsapp(mensagem)
 
         return jsonify({
