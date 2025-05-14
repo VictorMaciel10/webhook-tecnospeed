@@ -64,7 +64,7 @@ def receber_webhook():
     try:
         token_recebido = request.headers.get("Client-Token")
         if token_recebido != CLIENT_TOKEN_HEADER:
-            print(f"❌ Token inválido recebido: {token_recebido}")
+            print("❌ Token inválido recebido:", token_recebido)
             return jsonify({"erro": "Token de segurança inválido"}), 403
 
         dados = request.get_json(silent=True)
@@ -80,8 +80,20 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Envia exatamente o JSON recebido como string, sem formatação ou edição
-        mensagem = json.dumps(dados, ensure_ascii=False)
+        # Conversão segura para texto plano, evitando null/[]/{} que a PlugzAPI rejeita
+        def formatar_valores(val):
+            if val is None or val == {} or val == []:
+                return "-"
+            if isinstance(val, dict):
+                return ", ".join(f"{k}: {formatar_valores(v)}" for k, v in val.items())
+            if isinstance(val, list):
+                return ", ".join(str(formatar_valores(v)) for v in val)
+            return str(val)
+
+        mensagem = ""
+        for chave, valor in dados.items():
+            mensagem += f"{chave}: {formatar_valores(valor)}\n"
+
         enviar_whatsapp(mensagem)
 
         return jsonify({
@@ -90,7 +102,7 @@ def receber_webhook():
         }), 200
 
     except Exception as e:
-        print(f"❌ Erro ao processar webhook: {e}")
+        print("❌ Erro ao processar webhook:", e)
         return jsonify({
             "erro": "Falha ao processar",
             "dados": {}
