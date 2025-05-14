@@ -24,8 +24,8 @@ def salvar_log(dados):
 
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem):
-    if not mensagem or mensagem.strip() == "📬 Notificação recebida da Tecnospeed:":
-        print("❌ Mensagem inválida ou vazia após formatação. Abortando envio.")
+    if not mensagem:
+        print("❌ Mensagem vazia. Abortando envio.")
         return False
 
     if not TELEFONE_DESTINO:
@@ -34,7 +34,7 @@ def enviar_whatsapp(mensagem):
 
     payload = {
         "phone": TELEFONE_DESTINO,
-        "message": mensagem.strip()[:4096]
+        "message": mensagem.strip()[:4096]  # plugzapi aceita no máximo 4096 caracteres
     }
 
     headers = {
@@ -56,7 +56,7 @@ def enviar_whatsapp(mensagem):
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
-        "mensagem": "Este endpoint é um Webhook e aceita apenas requisições POST com JSON."
+        "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
     }), 200
 
 @app.route("/webhook", methods=["POST"])
@@ -80,20 +80,8 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Conversão segura de dados para string plana
-        def formatar_valores(val):
-            if val is None or val == {} or val == []:
-                return "-"
-            if isinstance(val, dict):
-                return ", ".join(f"{k}: {formatar_valores(v)}" for k, v in val.items())
-            if isinstance(val, list):
-                return ", ".join(str(formatar_valores(v)) for v in val)
-            return str(val)
-
-        mensagem = "📬 Notificação recebida da Tecnospeed:\n"
-        for chave, valor in dados.items():
-            mensagem += f"\n{chave}: {formatar_valores(valor)}"
-
+        # Envia exatamente o JSON recebido como string, sem formatação ou edição
+        mensagem = json.dumps(dados, ensure_ascii=False)
         enviar_whatsapp(mensagem)
 
         return jsonify({
