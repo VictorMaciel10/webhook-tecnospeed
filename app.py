@@ -17,14 +17,14 @@ DESTINOS_WHATSAPP = {
     "13279813000104": "5511971102724"
 }
 
-# Salva os dados recebidos no log
+# Função para salvar os dados no log
 def salvar_log(dados):
     with open("log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Função para achatar dicionários aninhados (fallback)
+# Função para achatar dicionários aninhados
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
@@ -35,30 +35,82 @@ def flatten_dict(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
-# Gera mensagem de WhatsApp com link do boleto se for registro
+# Função para gerar mensagem personalizada por tipoWH
 def gerar_mensagem_personalizada(dados):
     tipo = dados.get("tipoWH")
     titulo = dados.get("titulo", {})
     nosso_numero = titulo.get("TituloNossoNumero", "N/A")
     id_integracao = titulo.get("idintegracao", "N/A")
     data_envio = dados.get("dataHoraEnvio", "N/A")
-    situacao = titulo.get("situacao", "N/A")
+    mensagem = ""
 
-    mensagem_base = (
-        f"📄 REGISTRO EFETUADO\n"
-        f"Nosso Número: {nosso_numero}\n"
-        f"ID Integração: {id_integracao}\n"
-        f"Data de Envio: {data_envio}\n"
-        f"Situação: {situacao}"
-    )
+    if tipo == "notifica_registrou":
+        mensagem = (
+            f"📄 REGISTRO EFETUADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Data de Envio: {data_envio}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}"
+        )
+        if id_integracao and id_integracao != "N/A":
+            url_boleto = f"https://plugboleto.com.br/api/v1/boletos/impressao/{id_integracao}"
+            mensagem += f"\n\n🔗 Boleto: {url_boleto}"
 
-    if tipo == "notifica_registrou" and id_integracao and id_integracao != "N/A":
-        url_boleto = f"https://plugboleto.com.br/api/v1/boletos/impressao/{id_integracao}"
-        mensagem_base += f"\n\n🔗 Boleto: {url_boleto}"
+    elif tipo == "notifica_liquidou":
+        mensagem = (
+            f"✅ LIQUIDAÇÃO CONFIRMADA\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Valor Pago: {titulo.get('PagamentoValorPago', 'N/A')}\n"
+            f"Data do Pagamento: {titulo.get('PagamentoData', 'N/A')}\n"
+            f"Data do Crédito: {titulo.get('PagamentoDataCredito', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
 
-    return mensagem_base
+    elif tipo == "notifica_baixou":
+        mensagem = (
+            f"🗑️ TÍTULO BAIXADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
 
-# Envia mensagem de texto pelo WhatsApp (PlugzAPI)
+    elif tipo == "notifica_rejeitou":
+        mensagem = (
+            f"❌ TÍTULO REJEITADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_alterou":
+        mensagem = (
+            f"✏️ ALTERAÇÃO EFETUADA\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Novo Valor: {titulo.get('TituloValor', 'N/A')}\n"
+            f"Nova Data de Vencimento: {titulo.get('TituloDataVencimento', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_protestou":
+        mensagem = (
+            f"📣 TÍTULO ENVIADO A PROTESTO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    else:
+        flat = flatten_dict(dados)
+        mensagem = "📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+
+    return mensagem
+
+# Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem, telefone_destino):
     payload = {
         "phone": telefone_destino,
@@ -100,7 +152,7 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Obter CNPJ do cedente
+        # Obter o CNPJ do cedente
         cnpj = dados.get("CpfCnpjCedente")
         if not cnpj:
             return jsonify({
@@ -115,7 +167,7 @@ def receber_webhook():
                 "dados": {}
             }), 403
 
-        # Gerar e enviar a mensagem
+        # Gerar mensagem personalizada e enviar via WhatsApp
         mensagem = gerar_mensagem_personalizada(dados)
         enviar_whatsapp(mensagem, telefone_destino)
 
