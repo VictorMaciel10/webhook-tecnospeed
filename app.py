@@ -8,7 +8,9 @@ from collections.abc import MutableMapping
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
-PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
+PLUGZ_API_BASE = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070"
+TEXT_API_URL = f"{PLUGZ_API_BASE}/send-text"
+PDF_API_URL = f"{PLUGZ_API_BASE}/send-document/pdf"
 
 # Mapeamento CNPJ -> número de WhatsApp
 DESTINOS_WHATSAPP = {
@@ -26,7 +28,7 @@ def salvar_log(dados):
         f.write("\n\n")
 
 
-# Função para achatar dicionários aninhados (fallback para mensagens genéricas)
+# Função para achatar dicionários aninhados
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
@@ -108,7 +110,7 @@ def gerar_mensagem_personalizada(dados):
         return "📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
 
 
-# Enviar mensagem via PlugzAPI
+# Enviar mensagem de texto
 def enviar_whatsapp(mensagem, telefone_destino):
     payload = {
         "phone": telefone_destino,
@@ -120,12 +122,34 @@ def enviar_whatsapp(mensagem, telefone_destino):
     }
 
     try:
-        resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
+        resposta = requests.post(TEXT_API_URL, headers=headers, json=payload)
         print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
         print("🧾 Resposta da PlugzAPI:", resposta.text)
         return resposta.status_code == 200
     except Exception as e:
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
+        return False
+
+
+# Enviar documento PDF
+def enviar_pdf_whatsapp(telefone_destino, url_pdf, nome_arquivo="boleto.pdf"):
+    payload = {
+        "phone": telefone_destino,
+        "url": url_pdf,
+        "filename": nome_arquivo
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Client-Token": "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
+    }
+
+    try:
+        resposta = requests.post(PDF_API_URL, headers=headers, json=payload)
+        print(f"📎 PDF enviado ao WhatsApp. Status: {resposta.status_code}")
+        print("🧾 Resposta da PlugzAPI:", resposta.text)
+        return resposta.status_code == 200
+    except Exception as e:
+        print(f"❌ Erro ao enviar PDF pelo PlugzAPI: {e}")
         return False
 
 
@@ -167,11 +191,19 @@ def receber_webhook():
                 "dados": {}
             }), 403
 
-        # Gerar mensagem personalizada com base no tipoWH
+        # Mensagem personalizada
         mensagem = gerar_mensagem_personalizada(dados)
 
-        # Enviar mensagem para WhatsApp
+        # Enviar mensagem de texto
         enviar_whatsapp(mensagem, telefone_destino)
+
+        # Se for registro, enviar também o PDF se estiver presente
+        if dados.get("tipoWH") == "notifica_registrou":
+            url_pdf = dados.get("titulo", {}).get("TituloUrlBoleto")
+            if url_pdf:
+                enviar_pdf_whatsapp(telefone_destino, url_pdf)
+            else:
+                print("⚠️ Registro recebido, mas sem URL do boleto PDF.")
 
         return jsonify({
             "mensagem": "Recebido com sucesso",
