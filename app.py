@@ -8,9 +8,7 @@ from collections.abc import MutableMapping
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
-PLUGZ_API_BASE = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070"
-TEXT_API_URL = f"{PLUGZ_API_BASE}/send-text"
-PDF_API_URL = f"{PLUGZ_API_BASE}/send-document/pdf"
+PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
 
 # Mapeamento CNPJ -> número de WhatsApp
 DESTINOS_WHATSAPP = {
@@ -19,16 +17,14 @@ DESTINOS_WHATSAPP = {
     "13279813000104": "5511971102724"
 }
 
-
-# Função para salvar os dados no log
+# Salva os dados recebidos no log
 def salvar_log(dados):
     with open("log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-
-# Função para achatar dicionários aninhados
+# Função para achatar dicionários aninhados (fallback)
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
@@ -39,78 +35,30 @@ def flatten_dict(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
-
-# Função para gerar mensagem personalizada por tipoWH
+# Gera mensagem de WhatsApp com link do boleto se for registro
 def gerar_mensagem_personalizada(dados):
     tipo = dados.get("tipoWH")
     titulo = dados.get("titulo", {})
     nosso_numero = titulo.get("TituloNossoNumero", "N/A")
     id_integracao = titulo.get("idintegracao", "N/A")
     data_envio = dados.get("dataHoraEnvio", "N/A")
+    situacao = titulo.get("situacao", "N/A")
 
-    if tipo == "notifica_registrou":
-        return (
-            f"📄 REGISTRO EFETUADO\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Data de Envio: {data_envio}\n"
-            f"Situação: {titulo.get('situacao', 'N/A')}"
-        )
+    mensagem_base = (
+        f"📄 REGISTRO EFETUADO\n"
+        f"Nosso Número: {nosso_numero}\n"
+        f"ID Integração: {id_integracao}\n"
+        f"Data de Envio: {data_envio}\n"
+        f"Situação: {situacao}"
+    )
 
-    elif tipo == "notifica_liquidou":
-        return (
-            f"✅ LIQUIDAÇÃO CONFIRMADA\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Valor Pago: {titulo.get('PagamentoValorPago', 'N/A')}\n"
-            f"Data do Pagamento: {titulo.get('PagamentoData', 'N/A')}\n"
-            f"Data do Crédito: {titulo.get('PagamentoDataCredito', 'N/A')}\n"
-            f"Data de Envio: {data_envio}"
-        )
+    if tipo == "notifica_registrou" and id_integracao and id_integracao != "N/A":
+        url_boleto = f"https://plugboleto.com.br/api/v1/boletos/impressao/{id_integracao}"
+        mensagem_base += f"\n\n🔗 Boleto: {url_boleto}"
 
-    elif tipo == "notifica_baixou":
-        return (
-            f"🗑️ TÍTULO BAIXADO\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Situação: {titulo.get('situacao', 'N/A')}\n"
-            f"Data de Envio: {data_envio}"
-        )
+    return mensagem_base
 
-    elif tipo == "notifica_rejeitou":
-        return (
-            f"❌ TÍTULO REJEITADO\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Situação: {titulo.get('situacao', 'N/A')}\n"
-            f"Data de Envio: {data_envio}"
-        )
-
-    elif tipo == "notifica_alterou":
-        return (
-            f"✏️ ALTERAÇÃO EFETUADA\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Novo Valor: {titulo.get('TituloValor', 'N/A')}\n"
-            f"Nova Data de Vencimento: {titulo.get('TituloDataVencimento', 'N/A')}\n"
-            f"Data de Envio: {data_envio}"
-        )
-
-    elif tipo == "notifica_protestou":
-        return (
-            f"📣 TÍTULO ENVIADO A PROTESTO\n"
-            f"Nosso Número: {nosso_numero}\n"
-            f"ID Integração: {id_integracao}\n"
-            f"Situação: {titulo.get('situacao', 'N/A')}\n"
-            f"Data de Envio: {data_envio}"
-        )
-
-    else:
-        flat = flatten_dict(dados)
-        return "📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
-
-
-# Enviar mensagem de texto
+# Envia mensagem de texto pelo WhatsApp (PlugzAPI)
 def enviar_whatsapp(mensagem, telefone_destino):
     payload = {
         "phone": telefone_destino,
@@ -122,7 +70,7 @@ def enviar_whatsapp(mensagem, telefone_destino):
     }
 
     try:
-        resposta = requests.post(TEXT_API_URL, headers=headers, json=payload)
+        resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
         print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
         print("🧾 Resposta da PlugzAPI:", resposta.text)
         return resposta.status_code == 200
@@ -130,35 +78,11 @@ def enviar_whatsapp(mensagem, telefone_destino):
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
         return False
 
-
-# Enviar documento PDF
-def enviar_pdf_whatsapp(telefone_destino, url_pdf, nome_arquivo="boleto.pdf"):
-    payload = {
-        "phone": telefone_destino,
-        "url": url_pdf,
-        "filename": nome_arquivo
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Client-Token": "Fc0dd5429e2674e2e9cea2c0b5b29d000S"
-    }
-
-    try:
-        resposta = requests.post(PDF_API_URL, headers=headers, json=payload)
-        print(f"📎 PDF enviado ao WhatsApp. Status: {resposta.status_code}")
-        print("🧾 Resposta da PlugzAPI:", resposta.text)
-        return resposta.status_code == 200
-    except Exception as e:
-        print(f"❌ Erro ao enviar PDF pelo PlugzAPI: {e}")
-        return False
-
-
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
         "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
     }), 200
-
 
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
@@ -176,7 +100,7 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Obter o CNPJ do cedente
+        # Obter CNPJ do cedente
         cnpj = dados.get("CpfCnpjCedente")
         if not cnpj:
             return jsonify({
@@ -191,19 +115,9 @@ def receber_webhook():
                 "dados": {}
             }), 403
 
-        # Mensagem personalizada
+        # Gerar e enviar a mensagem
         mensagem = gerar_mensagem_personalizada(dados)
-
-        # Enviar mensagem de texto
         enviar_whatsapp(mensagem, telefone_destino)
-
-        # Se for registro, enviar também o PDF se estiver presente
-        if dados.get("tipoWH") == "notifica_registrou":
-            url_pdf = dados.get("titulo", {}).get("TituloUrlBoleto")
-            if url_pdf:
-                enviar_pdf_whatsapp(telefone_destino, url_pdf)
-            else:
-                print("⚠️ Registro recebido, mas sem URL do boleto PDF.")
 
         return jsonify({
             "mensagem": "Recebido com sucesso",
@@ -216,7 +130,6 @@ def receber_webhook():
             "erro": "Falha ao processar",
             "dados": {}
         }), 400
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
