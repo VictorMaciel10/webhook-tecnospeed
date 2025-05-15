@@ -17,6 +17,7 @@ DESTINOS_WHATSAPP = {
     "13279813000104": "5511971102724"
 }
 
+
 # Função para salvar os dados no log
 def salvar_log(dados):
     with open("log_webhook.txt", "a", encoding="utf-8") as f:
@@ -24,7 +25,8 @@ def salvar_log(dados):
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Função para achatar dicionários aninhados
+
+# Função para achatar dicionários aninhados (fallback para mensagens genéricas)
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
@@ -34,6 +36,77 @@ def flatten_dict(d, parent_key='', sep='.'):
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+# Função para gerar mensagem personalizada por tipoWH
+def gerar_mensagem_personalizada(dados):
+    tipo = dados.get("tipoWH")
+    titulo = dados.get("titulo", {})
+    nosso_numero = titulo.get("TituloNossoNumero", "N/A")
+    id_integracao = titulo.get("idintegracao", "N/A")
+    data_envio = dados.get("dataHoraEnvio", "N/A")
+
+    if tipo == "notifica_registrou":
+        return (
+            f"📄 REGISTRO EFETUADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Data de Envio: {data_envio}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}"
+        )
+
+    elif tipo == "notifica_liquidou":
+        return (
+            f"✅ LIQUIDAÇÃO CONFIRMADA\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Valor Pago: {titulo.get('PagamentoValorPago', 'N/A')}\n"
+            f"Data do Pagamento: {titulo.get('PagamentoData', 'N/A')}\n"
+            f"Data do Crédito: {titulo.get('PagamentoDataCredito', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_baixou":
+        return (
+            f"🗑️ TÍTULO BAIXADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_rejeitou":
+        return (
+            f"❌ TÍTULO REJEITADO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_alterou":
+        return (
+            f"✏️ ALTERAÇÃO EFETUADA\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Novo Valor: {titulo.get('TituloValor', 'N/A')}\n"
+            f"Nova Data de Vencimento: {titulo.get('TituloDataVencimento', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    elif tipo == "notifica_protestou":
+        return (
+            f"📣 TÍTULO ENVIADO A PROTESTO\n"
+            f"Nosso Número: {nosso_numero}\n"
+            f"ID Integração: {id_integracao}\n"
+            f"Situação: {titulo.get('situacao', 'N/A')}\n"
+            f"Data de Envio: {data_envio}"
+        )
+
+    else:
+        flat = flatten_dict(dados)
+        return "📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+
 
 # Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem, telefone_destino):
@@ -55,11 +128,13 @@ def enviar_whatsapp(mensagem, telefone_destino):
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
         return False
 
+
 @app.route("/webhook", methods=["GET"])
 def webhook_info():
     return jsonify({
         "mensagem": "Este endpoint é um webhook e aceita apenas requisições POST com JSON."
     }), 200
+
 
 @app.route("/webhook", methods=["POST"])
 def receber_webhook():
@@ -92,9 +167,8 @@ def receber_webhook():
                 "dados": {}
             }), 403
 
-        # Achatar JSON para texto plano
-        flat = flatten_dict(dados)
-        mensagem = "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+        # Gerar mensagem personalizada com base no tipoWH
+        mensagem = gerar_mensagem_personalizada(dados)
 
         # Enviar mensagem para WhatsApp
         enviar_whatsapp(mensagem, telefone_destino)
@@ -110,6 +184,7 @@ def receber_webhook():
             "erro": "Falha ao processar",
             "dados": {}
         }), 400
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
