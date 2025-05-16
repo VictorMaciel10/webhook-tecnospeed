@@ -49,7 +49,7 @@ def gerar_mensagem_personalizada(dados):
             f"📄 REGISTRO EFETUADO\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
-            f"Data de Envio: {data_envio}\n"
+            f"Data de Envio: {data_envio}\n"  
             f"Situação: {titulo.get('situacao', 'N/A')}"
         )
         if id_integracao and id_integracao != "N/A":
@@ -124,7 +124,7 @@ def enviar_whatsapp(mensagem, telefone_destino):
     try:
         resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
         print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
-        print("🧾 Resposta da PlugzAPI:", resposta.text)
+        print("📟 Resposta da PlugzAPI:", resposta.text)
         return resposta.status_code == 200
     except Exception as e:
         print(f"❌ Erro ao enviar mensagem pelo PlugzAPI: {e}")
@@ -152,7 +152,6 @@ def receber_webhook():
         print(json.dumps(dados, indent=2, ensure_ascii=False))
         salvar_log(dados)
 
-        # Obter o CNPJ do cedente
         cnpj = dados.get("CpfCnpjCedente")
         if not cnpj:
             return jsonify({
@@ -160,16 +159,21 @@ def receber_webhook():
                 "dados": {}
             }), 400
 
-        telefone_destino = DESTINOS_WHATSAPP.get(cnpj)
-        if not telefone_destino:
+        telefone_principal = DESTINOS_WHATSAPP.get(cnpj)
+        if not telefone_principal:
             return jsonify({
                 "erro": f"CNPJ '{cnpj}' não autorizado ou não mapeado.",
                 "dados": {}
             }), 403
 
-        # Gerar mensagem personalizada e enviar via WhatsApp
         mensagem = gerar_mensagem_personalizada(dados)
-        enviar_whatsapp(mensagem, telefone_destino)
+
+        # Enviar para o número principal
+        enviar_whatsapp(mensagem, telefone_principal)
+
+        # Enviar para o número adicional se o CNPJ for especial
+        if cnpj in {"35255716000114", "13279813000104"}:
+            enviar_whatsapp(mensagem, "5511989704515")
 
         return jsonify({
             "mensagem": "Recebido com sucesso",
