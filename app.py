@@ -24,7 +24,7 @@ def salvar_log(dados):
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Função para achatar dicionários aninhados
+# Função para arrumar dicionários aninhados
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
