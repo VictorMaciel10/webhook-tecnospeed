@@ -3,12 +3,27 @@ from datetime import datetime
 import json
 import os
 import requests
+import pymysql
 from collections.abc import MutableMapping
 
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
 PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
+
+# CONFIGURAÇÃO DO BANCO DE DADOS MYSQL AZURE
+DB_CONFIG = {
+    'host': 'bddevelop1.mysql.database.azure.com',
+    'user': 'bddevelop',
+    'password': 'E130581.rik',
+    'database': 'develop_1_lic',
+    'port': 3306,
+    'charset': 'utf8mb4',
+    'cursorclass': pymysql.cursors.DictCursor
+}
+
+def conectar_banco():
+    return pymysql.connect(**DB_CONFIG)
 
 # Mapeamento CNPJ -> número de WhatsApp
 DESTINOS_WHATSAPP = {
@@ -17,14 +32,12 @@ DESTINOS_WHATSAPP = {
     "13279813000104": "5511971102724"
 }
 
-# Função para salvar os dados no log
 def salvar_log(dados):
     with open("log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
 
-# Função para arrumar dicionários aninhados
 def flatten_dict(d, parent_key='', sep='.'):
     items = []
     for k, v in d.items():
@@ -35,29 +48,55 @@ def flatten_dict(d, parent_key='', sep='.'):
             items.append((new_key, v))
     return dict(items)
 
-# Função para gerar mensagem personalizada por tipoWH
-def gerar_mensagem_personalizada(dados):
+def gerar_mensagem_personalizada(dados, schema_cliente):
     tipo = dados.get("tipoWH")
     titulo = dados.get("titulo", {})
     nosso_numero = titulo.get("TituloNossoNumero", "N/A")
     id_integracao = titulo.get("idintegracao", "N/A")
     data_envio = dados.get("dataHoraEnvio", "N/A")
     mensagem = ""
+    nome_empresa = "Desconhecida"
+
+    # Buscar nome da empresa no banco do cliente
+    if id_integracao and id_integracao != "N/A":
+        try:
+            conn = conectar_banco()
+            with conn.cursor() as cursor:
+                cursor.execute(f"""
+                    SELECT cadastro.razaosocial
+                    FROM `{schema_cliente}`.receber
+                    INNER JOIN `{schema_cliente}`.cadastro
+                        ON receber.coddestinatario = cadastro.codcadastro
+                    WHERE receber.numeroboleto = %s
+                    LIMIT 1
+                """, (id_integracao,))
+                resultado = cursor.fetchone()
+                if resultado:
+                    nome_empresa = resultado["razaosocial"]
+        except Exception as e:
+            print(f"⚠️ Erro ao buscar razão social da empresa: {e}")
+        finally:
+            if 'conn' in locals():
+                conn.close()
+
+    empresa_info = f"🏢 Empresa: {nome_empresa}"
 
     if tipo == "notifica_registrou":
         mensagem = (
+            f"{empresa_info}\n"
             f"📄 REGISTRO EFETUADO\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
-            f"Data de Envio: {data_envio}\n"  
+            f"Data de Envio: {data_envio}\n"
             f"Situação: {titulo.get('situacao', 'N/A')}"
         )
-        if id_integracao and id_integracao != "N/A":
+        if id_integracao != "N/A":
             url_boleto = f"https://plugboleto.com.br/api/v1/boletos/impressao/{id_integracao}"
             mensagem += f"\n\n🔗 Boleto: {url_boleto}"
 
     elif tipo == "notifica_liquidou":
         mensagem = (
+            f"{empresa_info}\n"
             f"✅ LIQUIDAÇÃO CONFIRMADA\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
@@ -69,6 +108,7 @@ def gerar_mensagem_personalizada(dados):
 
     elif tipo == "notifica_baixou":
         mensagem = (
+            f"{empresa_info}\n"
             f"🗑️ TÍTULO BAIXADO\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
@@ -78,6 +118,7 @@ def gerar_mensagem_personalizada(dados):
 
     elif tipo == "notifica_rejeitou":
         mensagem = (
+            f"{empresa_info}\n"
             f"❌ TÍTULO REJEITADO\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
@@ -87,6 +128,7 @@ def gerar_mensagem_personalizada(dados):
 
     elif tipo == "notifica_alterou":
         mensagem = (
+            f"{empresa_info}\n"
             f"✏️ ALTERAÇÃO EFETUADA\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
@@ -97,6 +139,7 @@ def gerar_mensagem_personalizada(dados):
 
     elif tipo == "notifica_protestou":
         mensagem = (
+            f"{empresa_info}\n"
             f"📣 TÍTULO ENVIADO A PROTESTO\n"
             f"Nosso Número: {nosso_numero}\n"
             f"ID Integração: {id_integracao}\n"
@@ -106,11 +149,10 @@ def gerar_mensagem_personalizada(dados):
 
     else:
         flat = flatten_dict(dados)
-        mensagem = "📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+        mensagem = f"{empresa_info}\n📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
 
     return mensagem
 
-# Enviar mensagem via PlugzAPI
 def enviar_whatsapp(mensagem, telefone_destino):
     payload = {
         "phone": telefone_destino,
@@ -142,11 +184,7 @@ def receber_webhook():
         dados = request.get_json(silent=True)
 
         if not dados:
-            print("⚠️ Webhook recebido com corpo vazio ou JSON inválido.")
-            return jsonify({
-                "erro": "Corpo vazio ou JSON inválido",
-                "dados": {}
-            }), 400
+            return jsonify({"erro": "Corpo vazio ou JSON inválido", "dados": {}}), 400
 
         print("📨 Webhook recebido da TecnoSpeed:")
         print(json.dumps(dados, indent=2, ensure_ascii=False))
@@ -154,38 +192,59 @@ def receber_webhook():
 
         cnpj = dados.get("CpfCnpjCedente")
         if not cnpj:
-            return jsonify({
-                "erro": "Campo 'CpfCnpjCedente' ausente no JSON recebido.",
-                "dados": {}
-            }), 400
+            return jsonify({"erro": "Campo 'CpfCnpjCedente' ausente no JSON recebido."}), 400
+
+        conn = conectar_banco()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT CODIGOEMPRESA, ESQUEMA
+                FROM develop_1_lic.autenticacao
+                WHERE REPLACE(REPLACE(REPLACE(REPLACE(RAZAOEMPRESA, '.', ''), '/', ''), '-', ''), ' ', '') = %s
+                LIMIT 1
+            """, (cnpj,))
+            empresa = cursor.fetchone()
+
+            if not empresa:
+                return jsonify({
+                    "erro": f"CNPJ {cnpj} não encontrado na tabela develop_1_lic.autenticacao."
+                }), 404
+
+            schema_cliente = empresa["ESQUEMA"].lower()
+            if not schema_cliente.isidentifier():
+                return jsonify({
+                    "erro": f"Nome de schema inválido: {schema_cliente}"
+                }), 500
+
+            # INSERT no schema correto
+            sql_insert = f"""
+                INSERT INTO `{schema_cliente}`.webhooks_recebidos (cnpj, tipo_wh, data_envio, json_completo)
+                VALUES (%s, %s, %s, %s)
+            """
+            cursor.execute(sql_insert, (
+                cnpj,
+                dados.get("tipoWH"),
+                dados.get("dataHoraEnvio"),
+                json.dumps(dados, ensure_ascii=False)
+            ))
+            conn.commit()
+
+        mensagem = gerar_mensagem_personalizada(dados, schema_cliente)
 
         telefone_principal = DESTINOS_WHATSAPP.get(cnpj)
-        if not telefone_principal:
-            return jsonify({
-                "erro": f"CNPJ '{cnpj}' não autorizado ou não mapeado.",
-                "dados": {}
-            }), 403
+        if telefone_principal:
+            enviar_whatsapp(mensagem, telefone_principal)
 
-        mensagem = gerar_mensagem_personalizada(dados)
-
-        # Enviar para o número principal
-        enviar_whatsapp(mensagem, telefone_principal)
-
-        # Enviar para o número adicional se o CNPJ for especial
         if cnpj in {"35255716000114", "13279813000104"}:
             enviar_whatsapp(mensagem, "5511989704515")
 
-        return jsonify({
-            "mensagem": "Recebido com sucesso",
-            "dados": {}
-        }), 200
+        return jsonify({"mensagem": "Recebido com sucesso", "dados": {}}), 200
 
     except Exception as e:
         print(f"❌ Erro ao processar webhook: {e}")
-        return jsonify({
-            "erro": "Falha ao processar",
-            "dados": {}
-        }), 400
+        return jsonify({"erro": "Falha ao processar", "dados": {}}), 400
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
