@@ -25,7 +25,6 @@ DB_CONFIG = {
 def conectar_banco():
     return pymysql.connect(**DB_CONFIG)
 
-# Mapeamento CNPJ -> número de WhatsApp
 DESTINOS_WHATSAPP = {
     "45784346000166": "5511978554235",
     "35255716000114": "5511971102724",
@@ -215,16 +214,18 @@ def receber_webhook():
                     "erro": f"Nome de schema inválido: {schema_cliente}"
                 }), 500
 
-            # INSERT no schema correto
+            # INSERT na tabela webhooks_recebidos
             sql_insert = f"""
-                INSERT INTO `{schema_cliente}`.webhooks_recebidos (cnpj, tipo_wh, data_envio, json_completo)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO `{schema_cliente}`.webhooks_recebidos 
+                (cnpj, tipo_wh, data_envio, json_completo, codigoempresa)
+                VALUES (%s, %s, %s, %s, %s)
             """
             cursor.execute(sql_insert, (
                 cnpj,
                 dados.get("tipoWH"),
                 dados.get("dataHoraEnvio"),
-                json.dumps(dados, ensure_ascii=False)
+                json.dumps(dados, ensure_ascii=False),
+                empresa["CODIGOEMPRESA"]
             ))
             conn.commit()
 
