@@ -56,7 +56,6 @@ def gerar_mensagem_personalizada(dados, schema_cliente):
     mensagem = ""
     nome_empresa = "Desconhecida"
 
-    # Buscar nome da empresa no banco do cliente
     if id_integracao and id_integracao != "N/A":
         try:
             conn = conectar_banco()
@@ -193,6 +192,11 @@ def receber_webhook():
         if not cnpj:
             return jsonify({"erro": "Campo 'CpfCnpjCedente' ausente no JSON recebido."}), 400
 
+        # Redirecionamento especial
+        cnpj_original = cnpj
+        if cnpj == "13279813000104":
+            cnpj = "35255716000114"
+
         conn = conectar_banco()
         with conn.cursor() as cursor:
             cursor.execute("""
@@ -214,14 +218,13 @@ def receber_webhook():
                     "erro": f"Nome de schema inválido: {schema_cliente}"
                 }), 500
 
-            # INSERT na tabela webhooks_recebidos
             sql_insert = f"""
                 INSERT INTO `{schema_cliente}`.webhooks_recebidos 
                 (cnpj, tipo_wh, data_envio, json_completo, codigoempresa)
                 VALUES (%s, %s, %s, %s, %s)
             """
             cursor.execute(sql_insert, (
-                cnpj,
+                cnpj_original,
                 dados.get("tipoWH"),
                 dados.get("dataHoraEnvio"),
                 json.dumps(dados, ensure_ascii=False),
@@ -231,11 +234,11 @@ def receber_webhook():
 
         mensagem = gerar_mensagem_personalizada(dados, schema_cliente)
 
-        telefone_principal = DESTINOS_WHATSAPP.get(cnpj)
+        telefone_principal = DESTINOS_WHATSAPP.get(cnpj_original)
         if telefone_principal:
             enviar_whatsapp(mensagem, telefone_principal)
 
-        if cnpj in {"35255716000114", "13279813000104"}:
+        if cnpj_original in {"35255716000114", "13279813000104"}:
             enviar_whatsapp(mensagem, "5511989704515")
 
         return jsonify({"mensagem": "Recebido com sucesso", "dados": {}}), 200
