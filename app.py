@@ -32,7 +32,8 @@ DESTINOS_WHATSAPP = {
 }
 
 def salvar_log(dados):
-    with open("log_webhook.txt", "a", encoding="utf-8") as f:
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/log_webhook.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now()} - Dados recebidos:\n")
         f.write(json.dumps(dados, ensure_ascii=False, indent=2))
         f.write("\n\n")
