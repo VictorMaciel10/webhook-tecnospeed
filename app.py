@@ -28,7 +28,9 @@ def conectar_banco():
 DESTINOS_WHATSAPP = {
     "45784346000166": "5511978554235",
     "35255716000114": "5511971102724",
-    "13279813000104": "5511971102724"
+    "13279813000104": "5511971102724",
+    "06555039000151": "553188356564",
+    "06269409000194": "553188356564"
 }
 
 def salvar_log(dados):
@@ -197,6 +199,8 @@ def receber_webhook():
         cnpj_original = cnpj
         if cnpj == "13279813000104":
             cnpj = "35255716000114"
+        elif cnpj == "06269409000194":
+            cnpj = "06555039000151"
 
         conn = conectar_banco()
         with conn.cursor() as cursor:
