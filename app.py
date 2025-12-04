@@ -25,16 +25,19 @@ DB_CONFIG = {
 def conectar_banco():
     return pymysql.connect(**DB_CONFIG)
 
+# AGORA OS DESTINOS SÃO LISTAS DE NÚMEROS
 DESTINOS_WHATSAPP = {
-    "45784346000166": "5511978554235", #soludoor
-    "35255716000114": "5511971102724", #marfan
-    "13279813000104": "5511971102724", #outra empresa da marfan
-    "18777112000119": "5511994472992",  # bella feira
-    "19415043000166": "5511964986859 ",  # Escritorio Tagarelas
-    "19415043000166": "5511975569019",  # Nathally Tagarelas
-    "19415043000166": "5511975544544",  # Tiago Tagarelas
-   #"06555039000151": "553188356564", #tooltech
-    #"06269409000194": "553188356564" #master / tooltech
+    "45784346000166": ["5511978554235"],  # soludoor
+    "35255716000114": ["5511971102724"],  # marfan
+    "13279813000104": ["5511971102724"],  # outra empresa da marfan
+    "18777112000119": ["5511994472992"],  # bella feira
+    "19415043000166": [
+        "5511964986859",   # Escritorio Tagarelas
+        "5511975569019",   # Nathally Tagarelas
+        "5511975544544",   # Tiago Tagarelas
+    ],
+    # "06555039000151": ["553188356564"],  # tooltech
+    # "06269409000194": ["553188356564"],  # master / tooltech
 }
 
 def salvar_log(dados):
@@ -154,7 +157,9 @@ def gerar_mensagem_personalizada(dados, schema_cliente):
 
     else:
         flat = flatten_dict(dados)
-        mensagem = f"{empresa_info}\n📦 Dados do título:\n" + "\n".join([f"{k}: {v}" for k, v in flat.items() if v is not None])
+        mensagem = f"{empresa_info}\n📦 Dados do título:\n" + "\n".join(
+            [f"{k}: {v}" for k, v in flat.items() if v is not None]
+        )
 
     return mensagem
 
@@ -170,7 +175,7 @@ def enviar_whatsapp(mensagem, telefone_destino):
 
     try:
         resposta = requests.post(PLUGZ_API_URL, headers=headers, json=payload)
-        print(f"✅ Mensagem enviada ao WhatsApp. Status: {resposta.status_code}")
+        print(f"✅ Mensagem enviada ao WhatsApp {telefone_destino}. Status: {resposta.status_code}")
         print("📟 Resposta da PlugzAPI:", resposta.text)
         return resposta.status_code == 200
     except Exception as e:
@@ -243,10 +248,12 @@ def receber_webhook():
 
         mensagem = gerar_mensagem_personalizada(dados, schema_cliente)
 
-        telefone_principal = DESTINOS_WHATSAPP.get(cnpj_original)
-        if telefone_principal:
-            enviar_whatsapp(mensagem, telefone_principal)
+        # Envia para todos os números configurados para o CNPJ
+        telefones_destino = DESTINOS_WHATSAPP.get(cnpj_original, [])
+        for telefone in telefones_destino:
+            enviar_whatsapp(mensagem, telefone)
 
+        # Regra extra para Marfan e "outra empresa da Marfan"
         if cnpj_original in {"35255716000114", "13279813000104"}:
             enviar_whatsapp(mensagem, "5511989704515")
 
