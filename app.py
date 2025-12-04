@@ -9,7 +9,7 @@ from collections.abc import MutableMapping
 app = Flask(__name__)
 
 # CONFIGURAÇÕES PLUGZAPI
-PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3C0D21B917DCB0A98E224689DEFE84AF/token/4FB6B468AB4F478D13FC0070/send-text"
+PLUGZ_API_URL = "https://api.plugzapi.com.br/instances/3EB1B4D6B8DE105D283A26D356DD90A9/token/4CD2BC99B9D4070109BC16EA/send-text"
 
 # CONFIGURAÇÃO DO BANCO DE DADOS MYSQL AZURE
 DB_CONFIG = {
