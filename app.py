@@ -28,8 +28,8 @@ def conectar_banco():
 # AGORA OS DESTINOS SÃO LISTAS DE NÚMEROS
 DESTINOS_WHATSAPP = {
     "45784346000166": ["5511978554235"],  # soludoor
-    "35255716000114": ["5511971102724"],  # marfan
-    "13279813000104": ["5511971102724"],  # outra empresa da marfan
+    "35255716000114": ["5511971102724", "5511998156188"],  # marfan
+    "13279813000104": ["5511971102724", "5511998156188"],  # outra empresa da marfan
     "18777112000119": ["5511994472992"],  # bella feira
     "19415043000166": [
         "5511964986859",   # Escritorio Tagarelas
